@@ -1,0 +1,8 @@
+onSaveInstanceState，当应用遇到意外（内存不足，用户直接按Home键），由系统销毁一个Activity的时候会触发，用于保存一些临时性的数据。
+
+onRestoreInstanceState，恢复应用意外保存的数据。
+
+可以用屏幕旋转测试程序保存状态的能力
+
+在旋转屏幕时我们除了使用onSaveInstanceState ()外，还可以使用onRetainNonConfigurationInstance()和getLastNonConfigurationInstance()这两个方法来保存切换屏幕的状态
+
