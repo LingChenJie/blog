@@ -1198,5 +1198,293 @@ int main(int argc, char *argv[]){
 
 
 
+## 结构体
+
+### struct用法
+
+使用**结构体（struct）**来存放一组不同类型的数据。结构体的定义形式为：
+
+```c
+struct 结构体名{
+    结构体所包含的变量或数组
+};
+```
+
+结构体是一种集合，它里面包含了多个变量或数组，它们的类型可以相同，也可以不同，每个这样的变量或数组都称为结构体的成员（Member）。
+
+```c
+struct stu{
+    char *name;  //姓名
+    int num;  //学号
+    int age;  //年龄
+    char group;  //所在学习小组
+    float score;  //成绩
+};
+```
+
+stu 为结构体名，它包含了 5 个成员，分别是 name、num、age、group、score。结构体成员的定义方式与变量和数组的定义方式相同，只是不能初始化。
+
+
+
+### 结构体变量
+
+```c
+struct stu stu1, stu2;
+```
+
+定义了两个变量 stu1 和 stu2，它们都是 stu 类型，都由 5 个成员组成。注意关键字`struct`不能少。
+
+stu 就像一个“模板”，定义出来的变量都具有相同的性质。也可以将结构体比作“图纸”，将结构体变量比作“零件”，根据同一张图纸生产出来的零件的特性都是一样的。
+
+也可以在定义结构体的同时定义结构体变量，将变量放在结构体定义的最后即可：
+
+```c
+struct stu{
+    char *name;  //姓名
+    int num;  //学号
+    int age;  //年龄
+    char group;  //所在学习小组
+    float score;  //成绩
+} stu1, stu2;
+
+```
+
+如果只需要 stu1、stu2 两个变量，后面不需要再使用结构体名定义其他变量，那么在定义时也可以不给出结构体名，如下所示：
+
+```c
+struct{  //没有写 stu
+    char *name;  //姓名
+    int num;  //学号
+    int age;  //年龄
+    char group;  //所在学习小组
+    float score;  //成绩
+} stu1, stu2;
+```
+
+
+
+### 成员的获取与赋值
+
+结构体和数组类似，也是一组数据的集合，整体使用没有太大的意义。数组使用下标`[ ]`获取单个元素，结构体使用点号`.`获取单个成员。获取结构体成员的一般格式为：
+
+```c
+结构体变量名.成员名;
+```
+
+通过这种方式可以获取成员的值，也可以给成员赋值：
+
+```c
+#include <stdio.h>
+int main(){
+    struct{
+        char *name;  //姓名
+        int num;  //学号
+        int age;  //年龄
+        char group;  //所在小组
+        float score;  //成绩
+    } stu1;
+    //给结构体成员赋值
+    stu1.name = "Tom";
+    stu1.num = 12;
+    stu1.age = 18;
+    stu1.group = 'A';
+    stu1.score = 136.5;
+    //读取结构体成员的值
+    printf("%s的学号是%d，年龄是%d，在%c组，今年的成绩是%.1f！\n", stu1.name, stu1.num, stu1.age, stu1.group, stu1.score);
+    return 0;
+}
+```
+
+除了可以对成员进行逐一赋值，也可以在定义时整体赋值，例如：
+
+```c
+struct{
+    char *name;  //姓名
+    int num;  //学号
+    int age;  //年龄
+    char group;  //所在小组
+    float score;  //成绩
+} stu1, stu2 = { "Tom", 12, 18, 'A', 136.5 };
+```
+
+不过整体赋值仅限于定义结构体变量的时候，在使用过程中只能对成员逐一赋值，这和数组的赋值非常类似。
+
+
+
+### 结构体数组
+
+定义结构体数组和定义结构体变量的方式类似，请看下面的例子：
+
+```c
+struct stu{
+    char *name;  //姓名
+    int num;  //学号
+    int age;  //年龄
+    char group;  //所在小组 
+    float score;  //成绩
+}class[5];
+```
+
+表示一个班级有5个学生。
+
+结构体数组在定义的同时也可以初始化，例如：
+
+```c
+struct stu{
+    char *name;  //姓名
+    int num;  //学号
+    int age;  //年龄
+    char group;  //所在小组 
+    float score;  //成绩
+}class[5] = {
+    {"Li ping", 5, 18, 'C', 145.0},
+    {"Zhang ping", 4, 19, 'A', 130.5},
+    {"He fang", 1, 18, 'A', 148.5},
+    {"Cheng ling", 2, 17, 'F', 139.0},
+    {"Wang ming", 3, 17, 'B', 144.5}
+};
+```
+
+计算全班学生的总成绩、平均成绩和以及 140 分以下的人数
+
+```c
+#include <stdio.h>
+struct{
+    char *name;  //姓名
+    int num;  //学号
+    int age;  //年龄
+    char group;  //所在小组
+    float score;  //成绩
+}class[] = {
+    {"Li ping", 5, 18, 'C', 145.0},
+    {"Zhang ping", 4, 19, 'A', 130.5},
+    {"He fang", 1, 18, 'A', 148.5},
+    {"Cheng ling", 2, 17, 'F', 139.0},
+    {"Wang ming", 3, 17, 'B', 144.5}
+};
+int main(){
+    int i, num_140 = 0;
+    float sum = 0;
+    for(i=0; i<5; i++){
+        sum += class[i].score;
+        if(class[i].score < 140) num_140++;
+    }
+    printf("sum=%.2f\naverage=%.2f\nnum_140=%d\n", sum, sum/5, num_140);
+    return 0;
+}
+```
+
+
+
+### 结构体指针
+
+当一个[指针](http://c.biancheng.net/c/80/)变量指向结构体时，我们就称它为**结构体指针**。C语言结构体指针的定义形式一般为：
+
+```c
+struct 结构体名 *变量名;
+```
+
+下面是一个定义结构体指针的实例：
+
+```c
+//结构体
+struct stu{
+    char *name;  //姓名
+    int num;  //学号
+    int age;  //年龄
+    char group;  //所在小组
+    float score;  //成绩
+} stu1 = { "Tom", 12, 18, 'A', 136.5 };
+//结构体指针
+struct stu *pstu = &stu1;
+```
+
+也可以在定义结构体的同时定义结构体指针：
+
+```c
+struct stu{
+    char *name;  //姓名
+    int num;  //学号
+    int age;  //年龄
+    char group;  //所在小组
+    float score;  //成绩
+} stu1 = { "Tom", 12, 18, 'A', 136.5 }, *pstu = &stu1;
+```
+
+
+
+#### 获取结构体成员
+
+通过结构体指针可以获取结构体成员，一般形式为：
+
+```c
+(*pointer).memberName
+```
+
+或者：
+
+```c
+pointer->memberName
+```
+
+第一种写法中，`.`的优先级高于`*`，`(*pointer)`两边的括号不能少。如果去掉括号写作`*pointer.memberName`，那么就等效于`*(pointer.memberName)`，这样意义就完全不对了。
+
+第二种写法中，`->`是一个新的运算符，习惯称它为“箭头”，有了它，可以通过结构体指针直接取得结构体成员；这也是`->`在C语言中的唯一用途。
+
+结构体指针的使用：
+
+```c
+#include <stdio.h>
+int main(){
+    struct{
+        char *name;  //姓名
+        int num;  //学号
+        int age;  //年龄
+        char group;  //所在小组
+        float score;  //成绩
+    } stu1 = { "Tom", 12, 18, 'A', 136.5 }, *pstu = &stu1;
+    //读取结构体成员的值
+    printf("%s的学号是%d，年龄是%d，在%c组，今年的成绩是%.1f！\n", (*pstu).name, (*pstu).num, (*pstu).age, (*pstu).group, (*pstu).score);
+    printf("%s的学号是%d，年龄是%d，在%c组，今年的成绩是%.1f！\n", pstu->name, pstu->num, pstu->age, pstu->group, pstu->score);
+    return 0;
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
