@@ -1452,6 +1452,270 @@ int main(){
 
 
 
+#### 结构体指针作为函数参数
+
+结构体变量名代表的是整个集合本身，作为函数参数时传递的整个集合，也就是所有成员，而不是像数组一样被编译器转换成一个指针。如果结构体成员较多，尤其是成员为数组时，传送的时间和空间开销会很大，影响程序的运行效率。所以最好的办法就是使用结构体指针，这时由实参传向形参的只是一个地址，非常快速。
+
+计算全班学生的总成绩、平均成绩和以及 140 分以下的人数：
+
+```c
+#include <stdio.h>
+struct stu{
+    char *name;  //姓名
+    int num;  //学号
+    int age;  //年龄
+    char group;  //所在小组
+    float score;  //成绩
+}stus[] = {
+    {"Li ping", 5, 18, 'C', 145.0},
+    {"Zhang ping", 4, 19, 'A', 130.5},
+    {"He fang", 1, 18, 'A', 148.5},
+    {"Cheng ling", 2, 17, 'F', 139.0},
+    {"Wang ming", 3, 17, 'B', 144.5}
+};
+void average(struct stu *ps, int len);
+int main(){
+    int len = sizeof(stus) / sizeof(struct stu);
+    average(stus, len);
+    return 0;
+}
+void average(struct stu *ps, int len){
+    int i, num_140 = 0;
+    float average, sum = 0;
+    for(i=0; i<len; i++){
+        sum += (ps + i) -> score;
+        if((ps + i)->score < 140) num_140++;
+    }
+    printf("sum=%.2f\naverage=%.2f\nnum_140=%d\n", sum, sum/5, num_140);
+}
+```
+
+
+
+#### 枚举
+
+枚举类型的定义形式为：
+
+```c
+enum typeName{ valueName1, valueName2, valueName3, ...... };
+```
+
+列出一个星期有几天：
+
+```c
+enum week{ Mon, Tues, Wed, Thurs, Fri, Sat, Sun };
+```
+
+枚举值默认从 0 开始，往后逐个加 1（递增）；也就是说，week 中的 Mon、Tues ...... Sun 对应的值分别为 0、1 ...... 6
+
+也可以给每个名字都指定一个值:
+
+```c
+enum week{ Mon = 1, Tues = 2, Wed = 3, Thurs = 4, Fri = 5, Sat = 6, Sun = 7 };
+```
+
+枚举变量
+
+```c
+enum week{ Mon = 1, Tues, Wed, Thurs, Fri, Sat, Sun };
+enum week a = Mon, b = Wed, c = Sat;
+```
+
+或者
+
+```c
+enum week{ Mon = 1, Tues, Wed, Thurs, Fri, Sat, Sun } a = Mon, b = Wed, c = Sat;
+```
+
+判断用户输入的是星期几:
+
+```c
+#include <stdio.h>
+int main(){
+    enum week{ Mon = 1, Tues, Wed, Thurs, Fri, Sat, Sun } day;
+    scanf("%d", &day);
+    switch(day){
+        case Mon: puts("Monday"); break;
+        case Tues: puts("Tuesday"); break;
+        case Wed: puts("Wednesday"); break;
+        case Thurs: puts("Thursday"); break;
+        case Fri: puts("Friday"); break;
+        case Sat: puts("Saturday"); break;
+        case Sun: puts("Sunday"); break;
+        default: puts("Error!");
+    }
+    return 0;
+}
+```
+
+枚举和宏其实非常类似：宏在预处理阶段将名字替换成对应的值，枚举在编译阶段将名字替换成对应的值。我们可以将枚举理解为编译阶段的宏。
+
+对于上面的代码，在编译的某个时刻会变成类似下面的样子：
+
+```c
+#include <stdio.h>
+int main(){
+    enum week{ Mon = 1, Tues, Wed, Thurs, Fri, Sat, Sun } day;
+    scanf("%d", &day);
+    switch(day){
+        case 1: puts("Monday"); break;
+        case 2: puts("Tuesday"); break;
+        case 3: puts("Wednesday"); break;
+        case 4: puts("Thursday"); break;
+        case 5: puts("Friday"); break;
+        case 6: puts("Saturday"); break;
+        case 7: puts("Sunday"); break;
+        default: puts("Error!");
+    }
+    return 0;
+}
+```
+
+Mon、Tues、Wed 这些名字都被替换成了对应的数字。这意味着，Mon、Tues、Wed 等都不是变量，它们不占用数据区（常量区、全局数据区、栈区和堆区）的内存，而是直接被编译到命令里面，放到代码区，所以不能用`&`取得它们的地址。这就是枚举的本质。
+
+
+
+### 共同体
+
+共用体有时也被称为联合或者联合体，这也是 Union 这个单词的本意。
+
+```c
+union 共用体名{
+    成员列表
+};
+```
+
+结构体和共用体的区别在于：结构体的各个成员会占用不同的内存，互相之间没有影响；而共用体的所有成员占用同一段内存，修改一个成员会影响其余所有成员。
+
+结构体占用的内存大于等于所有成员占用的内存的总和（成员之间可能会存在缝隙），共用体占用的内存等于最长的成员占用的内存。共用体使用了内存覆盖技术，同一时刻只能保存一个成员的值，如果对新的成员赋值，就会把原来成员的值覆盖掉。
+
+共用体也是一种自定义类型，可以通过它来创建变量，例如：
+
+```c
+union data{
+    int n;
+    char ch;
+    double f;
+};
+union data a, b, c;
+```
+
+或
+
+```c
+union data{
+    int n;
+    char ch;
+    double f;
+} a, b, c;
+```
+
+如果不再定义新的变量，也可以将共用体的名字省略：
+
+```c
+union{
+    int n;
+    char ch;
+    double f;
+} a, b, c;
+```
+
+共用体 data 中，成员 f 占用的内存最多，为 8 个字节，所以 data 类型的变量（也就是 a、b、c）也占用 8 个字节的内存。
+
+
+
+#### 共用体的应用
+
+共用体在一般的编程中应用较少，在单片机中应用较多。
+
+对于 PC 机，经常使用到的一个实例是： 现有一张关于学生信息和教师信息的表格。学生信息包括姓名、编号、性别、职业、分数，教师的信息包括姓名、编号、性别、职业、教学科目。请看下面的表格：
+
+| Name        | Num  | Sex  | Profession | Score / Course |
+| ----------- | ---- | ---- | ---------- | -------------- |
+| HanXiaoXiao | 501  | f    | s          | 89.5           |
+| YanWeiMin   | 1011 | m    | t          | math           |
+| LiuZhenTao  | 109  | f    | t          | English        |
+| ZhaoFeiYan  | 982  | m    | s          | 95.0           |
+
+f 和 m 分别表示女性和男性，s 表示学生，t 表示教师。可以看出，学生和教师所包含的数据是不同的。现在要求把这些信息放在同一个表格中，并设计程序输入人员信息然后输出。
+
+如果把每个人的信息都看作一个结构体变量的话，那么教师和学生的前 4 个成员变量是一样的，第 5 个成员变量可能是 score 或者 course。
+
+当第 4 个成员变量的值是 s 的时候，第 5 个成员变量就是 score;
+
+当第 4 个成员变量的值是 t 的时候，第 5 个成员变量就是 course.
+
+可以设计一个包含共用体的结构体:
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#define TOTAL 4  //人员总数
+struct{
+    char name[20];
+    int num;
+    char sex;
+    char profession;
+    union{
+        float score;
+        char course[20];
+    } sc;
+} bodys[TOTAL];
+int main(){
+    int i;
+    //输入人员信息
+    for(i=0; i<TOTAL; i++){
+        printf("Input info: ");
+        scanf("%s %d %c %c", bodys[i].name, &(bodys[i].num), &(bodys[i].sex), &(bodys[i].profession));
+        if(bodys[i].profession == 's'){  //如果是学生
+            scanf("%f", &bodys[i].sc.score);
+        }else{  //如果是老师
+            scanf("%s", bodys[i].sc.course);
+        }
+        fflush(stdin);
+    }
+    //输出人员信息
+    printf("\nName\t\tNum\tSex\tProfession\tScore / Course\n");
+    for(i=0; i<TOTAL; i++){
+        if(bodys[i].profession == 's'){  //如果是学生
+            printf("%s\t%d\t%c\t%c\t\t%f\n", bodys[i].name, bodys[i].num, bodys[i].sex, bodys[i].profession, bodys[i].sc.score);
+        }else{  //如果是老师
+            printf("%s\t%d\t%c\t%c\t\t%s\n", bodys[i].name, bodys[i].num, bodys[i].sex, bodys[i].profession, bodys[i].sc.course);
+        }
+    }
+    return 0;
+}
+```
+
+运行结果：
+
+```
+Input info: HanXiaoXiao 501 f s 89.5↙
+Input info: YanWeiMin 1011 m t math↙
+Input info: LiuZhenTao 109 f t English↙
+Input info: ZhaoFeiYan 982 m s 95.0↙
+
+Name            Num     Sex     Profession      Score / Course
+HanXiaoXiao     501     f       s               89.500000
+YanWeiMin       1011    m       t               math
+LiuZhenTao      109     f       t               English
+ZhaoFeiYan      982     m       s               95.000000
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
