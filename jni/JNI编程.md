@@ -1465,7 +1465,7 @@ Java层：
 public native int[][] operateTwoIntDimArray(int[][] array_in);
 ```
 
-JNI层：
+c/c++层：
 
 ```c
 JNIEXPORT jobjectArray JNICALL Java_com_xxx_jni_JNIArrayManager_operateTwoIntDimArray(JNIEnv * env, jobject object, jobjectArray objectArray_in)
@@ -1861,7 +1861,597 @@ Native 访问一个 Java 方法基本分为三部：
 
 
 
+## 异常处理
 
+JNI 程序中的异常分为以下几种：
+
+- Native 程序原生异常，一般通过函数返回值和 linux 信号处理， C++ 中也有 try catch 机制解决异常
+- JNIEnv 内部函数抛出的异常，一般通过返回值判断，发现异常直接 return, jvm 会给将异常传递给 Java 层
+- Native 回调 Java 层方法，被回调的方法抛出异常，JNI 提供了特定的 API 来处理这类异常
+
+
+
+### JNIEnv内部函数抛出的异常
+
+很多 JNIEnv 中的函数都会抛出异常，处理方法大体上是一致的：
+
+- 返回值与特殊值（一般是 NULL）比较，知晓函数是否发生异常
+- 如果发生异常立即 return
+- jvm 会将异常抛给 java 层，我们可以在 java 层通过 try catch 机制捕获异常
+
+Java层：
+
+```java
+public native void exceptionTest();
+
+//调用
+try {
+     exceptionTest();
+} catch (Exception e) {
+    e.printStackTrace();
+}
+```
+
+c/c++层：
+
+```c
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_xxx_MainActivity_exceptionTest(JNIEnv *env, jobject thiz) {   
+    //查找的类不存在，返回 NULL；
+    jclass clazz = env->FindClass("com/xxx/xxx");
+    if (clazz == NULL) {
+        return; //return 后，jvm 会向 java 层抛出 ClassNotFoundException
+    }
+}
+```
+
+执行后的log：
+
+```
+java.lang.ClassNotFoundException: Didn't find class "com.xxx.xxx"
+```
+
+说明，java 层捕获到了异常
+
+
+
+### Native回调Java层方法，被回调的方法抛出异常
+
+Native 回调 Java 层方法，被回调的方法抛出异常。这样情况下一般有两种解决办法：
+
+- Java 层 Try catch 本地方法，这是比较推荐的办法。
+
+- Native 层处理异常，异常处理如果和 native 层相关，可以采用这种方式
+
+  
+
+#### Java层try catch本地方法
+
+Java层：
+
+```java
+//执行这个方法会抛出异常
+private static int exceptionMethod() {
+    return 20 / 0;
+}
+
+//native 方法，在 native 中，会调用到 exceptionMethod() 方法
+public native void exceptionTest();
+
+//Java 层调用
+try {
+    exceptionTest();
+} catch (Exception e) {
+    //这里处理异常
+    //一般是打 log 和弹 toast 通知用户
+    e.printStackTrace();
+}
+```
+
+c/c++层：
+
+```c
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_xxx_MainActivity_exceptionTest(JNIEnv *env, jobject thiz) {
+    jclass clazz = env->FindClass("com/xxx/TestJavaClass");
+    if (clazz == NULL) {
+        return;
+    }
+
+    //调用 java 层会抛出异常的方法
+    jmethodID static_method_id = env->GetStaticMethodID(clazz, "exceptionMethod", "()I");
+
+    if (NULL == static_method_id) {
+        return;
+    }
+
+    //直接调用，发生 ArithmeticException 异常，传回 Java 层
+    env->CallStaticIntMethod(clazz, static_method_id);
+
+    env->DeleteLocalRef(clazz);
+}
+```
+
+
+
+#### Native层处理异常
+
+有的异常需要在 Native 处理，这里又分为两类：
+
+- 异常在 Native 层就处理完了
+- 异常在 Native 层处理了，还需要返回给 Java 层，Java 层继续处理
+
+Java层:
+
+```java
+//执行这个方法会抛出异常
+private static int exceptionMethod() {
+    return 20 / 0;
+}
+
+//native 方法，在 native 中，会调用到 exceptionMethod() 方法
+public native void exceptionTest();
+
+//Java 层调用
+try {
+    exceptionTest();
+} catch (Exception e) {
+    //这里处理异常
+    //一般是打 log 和弹 toast 通知用户
+    e.printStackTrace();
+}
+```
+
+c/c++层：
+
+```c
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_xxx_MainActivity_exceptionTest(JNIEnv *env, jobject thiz) {
+    jthrowable mThrowable;
+    jclass clazz = env->FindClass("com/xxx/TestJavaClass");
+    if (clazz == NULL) {
+        return;
+    }
+
+    jmethodID static_method_id = env->GetStaticMethodID(clazz, "exceptionMethod", "()I");
+    if (NULL == static_method_id) {
+        return;
+    }
+
+    env->CallStaticIntMethod(clazz, static_method_id);
+
+    //检测是否有异常发生
+    if (env->ExceptionCheck()) {
+        //获取到异常对象
+        mThrowable = env->ExceptionOccurred();
+        //这里就可以根据实际情况处理异常了
+        //.......
+        //打印异常信息堆栈
+        env->ExceptionDescribe();
+        //清除异常信息
+        //如果，异常还需要 Java 层处理，可以不调用 ExceptionClear，让异常传递给 Java 层
+        env->ExceptionClear();
+        //如果调用了 ExceptionClear 后，异常还需要 Java 层处理，我们可以抛出一个新的异常给 Java 层
+        jclass clazz_exception = env->FindClass("java/lang/Exception");
+        env->ThrowNew(clazz_exception, "JNI抛出的异常！");
+
+        env->DeleteLocalRef(clazz_exception);
+    }
+
+    env->DeleteLocalRef(clazz);
+    env->DeleteLocalRef(mThrowable);
+}
+```
+
+
+
+
+
+## 从内存角度看引用类型
+
+### Java程序使用的内存
+
+Java 程序使用的内存从逻辑上可以分为两个部分：
+
+- Java Memory
+- Native Memory
+
+
+
+Java Memory 就是我们的 Java 程序使用的内存，通常从逻辑上区分为栈和堆。
+
+方法中的局部变量通常存储在栈中，引用类型指向的对象一般存储在堆中。Java Memory 由 JVM 分配和管理，JVM 中通常会有一个 GC 线程，用于回收不再使用的内存。
+
+
+
+Java 程序的执行依托于 JVM ，JVM 一般使用 C/C++ 代码编写，需要根据 Native 编程规范去操作内存。
+
+如：C/C++ 使用 malloc()/new 分配内存，需要手动使用 free()/delete 回收内存。这部分内存我们称为 Native Memory。
+
+
+
+Java 中的对象对应的内存，由 JVM 来管理，他们都有自己的数据结构。
+
+当我们通过 JNI 将一个 Java 对象传递给 Native 程序时，Native 程序要操作这块内存时（即操作这个对象），就需要了解这个数据结构，显然这有点麻烦了，所以 JVM 的设计者在 JNIenv 中定义了很多函数（NewStringUTF，FindClass，NewObject 等）来帮你操作和构造这些对象。同时也提供了引用类型（jobject、jstring、jclass、jarray、jintArray等）来引用这些对象。
+
+
+
+### 内存角度的JNI引用类型
+
+之前我们介绍了，JNI 引用类型有三种：Local Reference、Global Reference、Weak Global Reference。
+
+接下来我们就从内存的角度来进一步解析这三类引用。
+
+
+
+首先，我们需要明确的是引用类型是指针，指向的是 **Java 中的对象在 JVM 中对应的内存**。引用类型的定义如下：
+
+```c
+#ifdef __cplusplus
+
+class _jobject {};
+class _jclass : public _jobject {};
+class _jthrowable : public _jobject {};
+class _jstring : public _jobject {};
+class _jarray : public _jobject {};
+class _jbooleanArray : public _jarray {};
+class _jbyteArray : public _jarray {};
+class _jcharArray : public _jarray {};
+class _jshortArray : public _jarray {};
+class _jintArray : public _jarray {};
+class _jlongArray : public _jarray {};
+class _jfloatArray : public _jarray {};
+class _jdoubleArray : public _jarray {};
+class _jobjectArray : public _jarray {};
+
+typedef _jobject *jobject;
+typedef _jclass *jclass;
+typedef _jthrowable *jthrowable;
+typedef _jstring *jstring;
+typedef _jarray *jarray;
+typedef _jbooleanArray *jbooleanArray;
+typedef _jbyteArray *jbyteArray;
+typedef _jcharArray *jcharArray;
+typedef _jshortArray *jshortArray;
+typedef _jintArray *jintArray;
+typedef _jlongArray *jlongArray;
+typedef _jfloatArray *jfloatArray;
+typedef _jdoubleArray *jdoubleArray;
+typedef _jobjectArray *jobjectArray;
+
+#else
+
+struct _jobject;
+
+typedef struct _jobject *jobject;
+typedef jobject jclass;
+typedef jobject jthrowable;
+typedef jobject jstring;
+typedef jobject jarray;
+typedef jarray jbooleanArray;
+typedef jarray jbyteArray;
+typedef jarray jcharArray;
+typedef jarray jshortArray;
+typedef jarray jintArray;
+typedef jarray jlongArray;
+typedef jarray jfloatArray;
+typedef jarray jdoubleArray;
+typedef jarray jobjectArray;
+
+#endif
+```
+
+不是以上类型的指针就不是 JNI 引用类型，比如容易混淆的 jmethod jfield 都不是 JNI 引用类型。
+
+JNI 引用类型是指针，和 C/C++ 中的普通指针不同，C/C++ 中的指针需要我们自己分配和回收内存（C/C++ 使用 malloc()/new 分配内存，需要手动使用 free()/delete 回收内存）。
+
+JNI 引用不需要我们分配和回收内存，这部分工作由 JVM 完成。我们额外需要做的工作是在 JNI 引用类型使用完后，将其从引用表中删除，防止引用表满了。
+
+
+
+#### 局部引用（Local Reference）
+
+通过 JNI 接口从 Java 传递下来或通过 NewLocalRef 和各种 JNI 接口（FindClass、NewObject、GetObjectClass和NewCharArray等）创建的引用称为局部引用。
+
+当从 Java 环境切换到 Native 环境时，JVM 分配一块内存用于创建一个 Local Reference Table，这个 Table 用来存放本次 Native Method 执行中创建的所有局部引用（Local Reference）。
+
+每当在 Native 代码中引用到一个 Java 对象时，JVM 就会在这个 Table 中创建一个 Local Reference。比如，我们调用 NewStringUTF() 在 Java Heap 中创建一个 String 对象后，在 Local Reference Table 中就会相应新增一个 Local Reference。
+
+对于开发者来说，Local Reference Table 是不可见的，Local Reference Table 的内存不大，所能存放的 Local Reference 数量也是有限的（在 Android 中默认最大容量是512个）。在开发中应该及时使用 DeleteLocalRef( )删除不必要的 Local Reference，不然可能会出现溢出错误。
+
+
+
+很多人会误将 JNI 中的 Local Reference 理解为 Native Code 的局部变量。这是错误的：
+
+- 局部变量存储在线程堆栈中，而 Local Reference 存储在 Local Ref 表中。
+- 局部变量在函数退栈后被删除，而 Local Reference 在调用 DeleteLocalRef() 后才会从 Local Ref 表中删除，并且失效，或者在整个 Native Method 执行结束后被删除。
+- 可以在代码中直接访问局部变量，而 Local Reference 的内容无法在代码中直接访问，必须通过 JNI function 间接访问。JNI function 实现了对 Local Reference 的间接访问，JNI function 的内部实现依赖于具体 JVM。
+
+
+
+#### 全局引用（Global Reference）
+
+Global Reference 是通过 JNI 函数 NewGlobalRef() 和DeleteGlobalRef() 来创建和删除的。 
+
+Global Reference 具有全局性，可以在多个 Native Method 调用过程和多线程中使用。
+
+使用 Global reference时，当 native code 不再需要访问 Global reference 时，应当调用 JNI 函数 DeleteGlobalRef() 删除 Global reference 和它引用的 Java 对象。否则 Global Reference 引用的 Java 对象将永远停留在 Java Heap 中，从而导致 Java Heap 的内存泄漏。
+
+
+
+#### 弱全局引用（Weak Global Reference）
+
+弱全局引用使用 NewWeakGlobalRef() 和 DeleteWeakGlobalRef() 进行创建和删除，它与 Global Reference 的区别在于该类型的引用随时都可能被 GC 回收。
+
+对于 Weak Global Reference 而言，可以通过 isSameObject() 将其与 NULL 比较，看看是否已经被回收了。如果返回 JNI_TRUE，则表示已经被回收了，需要重新初始化弱全局引用。
+
+Weak Global Reference 的回收时机是不确定的，有可能在前一行代码判断它是可用的，后一行代码就被 GC 回收掉了。为了避免这种事情发生，JNI官方给出了正确的做法，通过 NewLocalRef() 获取 Weak Global Reference，避免被GC回收。
+
+
+
+
+
+## JNI调用性能优化
+
+- Java 程序中，调用一个 Native 方法相比调用一个 Java 方法要耗时很多，我们应该减少 JNI 方法的调用，同时一次 JNI 调用尽量完成更多的事情。对于过于耗时的 JNI 调用，应该放到后台线程调用。
+- Native 程序要访问 Java 对象的字段或调用它们的方法时，本机代码必须调用 FindClass()、GetFieldID()、GetStaticFieldID、GetMethodID() 和 GetStaticMethodID() 等方法，返回的 ID 不会在 JVM 进程的生存期内发生变化。但是，获取字段或方法的调用有时会需要在 JVM 中完成大量工作，因为字段和方法可能是从超类中继承而来的，这会让 JVM 向上遍历类层次结构来找到它们。为了提高性能，我们可以把这些 ID 缓存起来，用内存换性能。
+
+
+
+### 使用时缓存
+
+Java层：
+
+```java
+public class TestJavaClass {
+
+    //......
+    private void myMethod() {
+        Log.i("JNI", "this is java myMethod");
+    }
+    //......
+}
+
+public native void cacheTest();
+```
+
+c/c++层：
+
+```c
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_xxx_MainActivity_cacheTest(JNIEnv *env, jobject thiz) {
+
+    jclass clazz = env->FindClass("com/xxx/TestJavaClass");
+    if (clazz == NULL) {
+        return;
+    }
+
+    static jmethodID java_construct_method_id = NULL;
+    static jmethodID java_method_id = NULL;
+
+    //实现缓存的目的，下次调用不用再获取 methodid 了
+    if (java_construct_method_id == NULL) {
+        //构造函数 id
+        java_construct_method_id = env->GetMethodID(clazz, "<init>", "()V");
+        if (java_construct_method_id == NULL) {
+            return;
+        }
+    }
+
+    //调用构造函数，创建一个对象
+    jobject object_test = env->NewObject(clazz, java_construct_method_id);
+    if (object_test == NULL) {
+        return;
+    }
+    //相同的手法，缓存 methodid
+    if (java_method_id == NULL) {
+        java_method_id = env->GetMethodID(clazz, "myMethod", "()V");
+        if (java_method_id == NULL) {
+            return;
+        }
+    }
+
+    //调用 myMethod 方法
+    env->CallVoidMethod(object_test, java_method_id);
+
+    env->DeleteLocalRef(clazz);
+    env->DeleteLocalRef(object_test);
+}
+```
+
+手法还是比较简单的，主要是通过一个全局变量保存 methodid，这样只有第一次调用 native 函数时，才会调用 GetMethodID 去获取，后面的调用都使用缓存起来的值了。这样就避免了不必要的调用，提升了性能。
+
+
+
+### 静态初始化缓存
+
+Java层：
+
+```java
+static {
+    System.loadLibrary("myjnidemo");
+    initIDs();
+}
+
+public static native void initIDs();
+```
+
+c/c++层：
+
+```c
+//定义用于缓存的全局变量
+static jmethodID java_construct_method_id2 = NULL;
+static jmethodID java_method_id2 = NULL;
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_xxx_MainActivity_initIDs(JNIEnv *env, jclass clazz) {
+
+    jclass clazz2 = env->FindClass("com/xxx/TestJavaClass");
+
+    if (clazz == NULL) {
+        return;
+    }
+
+    //实现缓存的目的，下次调用不用再获取 methodid 了
+    if (java_construct_method_id2 == NULL) {
+        //构造函数 id
+        java_construct_method_id2 = env->GetMethodID(clazz2, "<init>", "()V");
+        if (java_construct_method_id2 == NULL) {
+            return;
+        }
+    }
+
+    if (java_method_id2 == NULL) {
+        java_method_id2 = env->GetMethodID(clazz2, "myMethod", "()V");
+        if (java_method_id2 == NULL) {
+            return;
+        }
+    }
+}
+```
+
+手法和使用时缓存是一样的，只是缓存的时机变了。如果是动态注册的 JNI 还可以在 Onload 函数中来执行缓存操作。
+
+
+
+
+
+## 多线程
+
+### 核心
+
+JNI 环境下，进行多线程编程，有以下两点是需明确的：
+
+- JNIEnv 是一个线程作用域的变量，不能跨线程传递，每个线程都有自己的 JNIEnv 且彼此独立
+- 局部引用不能在本地函数中跨函数使用，不能跨线程使用，当然也不能直接缓存起来使用
+
+
+
+### 示例
+
+- 如何在子线程获取到属于子线程自己的 JNIEnv
+- 上面说了局部引用不能再线程之间直接传递，所以我们只有另觅他法。
+
+Java层：
+
+```java
+public void javaCallback(int count) {
+    Log.e(TAG, "onNativeCallBack : " + count);
+}
+
+public native void threadTest();
+```
+
+c/c++层：
+
+```c
+static int count = 0;
+JavaVM *gJavaVM = NULL;//全局 JavaVM 变量
+jobject gJavaObj = NULL;//全局 Jobject 变量
+jmethodID nativeCallback = NULL;//全局的方法ID
+
+//这里通过标志位来确定 两个线程的工作都完成了再执行 DeleteGlobalRef
+//当然也可以通过加锁实现
+bool main_finished = false;
+bool background_finished = false;
+
+static void *native_thread_exec(void *arg) {
+
+    LOGE(TAG, "nativeThreadExec");
+    LOGE(TAG, "The pthread id : %d\n", pthread_self());
+    JNIEnv *env;
+    //从全局的JavaVM中获取到环境变量
+    gJavaVM->AttachCurrentThread(&env, NULL);
+
+    //线程循环
+    for (int i = 0; i < 5; i++) {
+        usleep(2);
+        //跨线程回调Java层函数
+        env->CallVoidMethod(gJavaObj, nativeCallback, count++);
+    }
+    gJavaVM->DetachCurrentThread();
+
+    background_finished = true;
+
+    if (main_finished && background_finished) {
+        env->DeleteGlobalRef(gJavaObj);
+        LOGE(TAG, "全局引用在子线程销毁");
+    }
+
+    return ((void *) 0);
+
+}
+
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_xxx_MainActivity_threadTest(JNIEnv *env, jobject thiz) {
+    //创建全局引用，方便其他函数或线程使用
+    gJavaObj = env->NewGlobalRef(thiz);
+    jclass clazz = env->GetObjectClass(thiz);
+    nativeCallback = env->GetMethodID(clazz, "javaCallback", "(I)V");
+    //保存全局 JavaVM，注意 JavaVM 不是 JNI 引用类型
+    env->GetJavaVM(&gJavaVM);
+
+    pthread_t id;
+    if (pthread_create(&id, NULL, native_thread_exec, NULL) != 0) {
+        return;
+    }
+
+    for (int i = 0; i < 5; i++) {
+        usleep(20);
+        //跨线程回调Java层函数
+        env->CallVoidMethod(gJavaObj, nativeCallback, count++);
+    }
+
+    main_finished = true;
+
+    if (main_finished && background_finished && !env->IsSameObject(gJavaObj, NULL)) {
+        env->DeleteGlobalRef(gJavaObj);
+        LOGE(TAG, "全局引用在主线程销毁");
+    }
+}
+```
+
+示例代码中，我们的子线程需要使用主线程中的 `jobject thiz`，该变量是一个局部引用，不能赋值给一个全局变量然后跨线程跨函数使用，我们通过 `NewGlobalRef` 将局部引用装换为全局引用并保存在全局变量 `jobject gJavaObj` 中，
+
+在使用完成后我们需要使用 DeleteGlobalRef 来释放全局引用，因为多个线程执行顺序的不确定性，我们使用了标志位来确保两个线程所有的工作完成后再执行释放操作。
+
+
+
+JNIEnv 是一个线程作用域的变量，不能跨线程传递，每个线程都有自己的 JNIEnv 且彼此独立，实际开发中，我们通过以下代码：
+
+```c
+JavaVM *gJavaVM = NULL;
+//主线程获取到 JavaVM
+env->GetJavaVM(&gJavaVM);
+
+//子线程通过 JavaVM 获取到自己的 JNIEnv
+JNIEnv *env;
+gJavaVM->AttachCurrentThread(&env, NULL);
+```
+
+在子线程中获取到 JNIEnv。JavaVM 是一个普通指针，由 JVM 来管理其内存的分配与回收，不是 JNI 引用类型，所以 我们可以把它赋值给一个全局变量，直接用，也不用考虑他的内存分配与后手问题。
+
+
+
+
+
+## 参考资料
+
+- [JNI编程上手指南](https://github.com/yuandaimaahao/AndroidFrameworkTutorial/tree/main/1.%E5%9F%BA%E7%A1%80%E7%AF%87/JNI%20%E7%BC%96%E7%A8%8B%E4%B8%8A%E6%89%8B%E6%8C%87%E5%8D%97)
+- [JNI内存方面说明以及相关类型手动释放内存](https://blog.csdn.net/nanke_yh/article/details/124863685)
+- [JNI/NDK入门指南之正确姿势了解JNI和NDK](https://blog.csdn.net/tkwxty/article/details/103454842)
+- [JNI 简明教程之手把手教你入门](https://blog.csdn.net/weiwei9363/article/details/97886291)
+- [cross-compiling-for-android-with-the-ndk](https://cmake.org/cmake/help/latest/manual/cmake-toolchains.7.html#cross-compiling-for-android-with-the-ndk)
+- [Android 官方cmake文档](https://developer.android.com/ndk/guides/cmake)
+- [JNI/NDK开发指南](https://blog.csdn.net/xyang81/category_9263427.html)
+- [关于 C++ 中的 extern "C"](https://zhuanlan.zhihu.com/p/123269132)
 
 
 
