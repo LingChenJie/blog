@@ -579,7 +579,7 @@ Native 层和 Java 层里对象的创建和销毁的过程：
 
 
 
-引用类型针对的是除开基本类型的 JNI 类型，比如 jstring, jclass ,jobject 等。JNI 类型是 java 层与 c 层的中间类型，java 层与 c 层都需要管理他。我们可以将 JNI 引用类型理解为 Java 意义的对象。
+引用类型针对的是除开基本类型的 JNI 类型，比如 jstring, jclass ,jobject 等。JNI 类型是 java 层与 c 层的中间类型，java 层与 c 层都需要管理它。我们可以将 JNI 引用类型理解为 Java 意义的对象。
 
 
 
