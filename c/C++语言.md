@@ -1065,13 +1065,317 @@ main
 
 
 
+### static静态成员变量
+
+在[C++](http://c.biancheng.net/cplus/)中，我们可以使用静态成员变量来实现多个对象共享数据的目标。静态成员变量是一种特殊的成员变量，它被关键字`static`修饰，例如：
+
+```c++
+class Student{
+public:
+    Student(char *name, int age, float score);
+    void show();
+public:
+    static int m_total;  //静态成员变量
+private:
+    char *m_name;
+    int m_age;
+    float m_score;
+};
+```
+
+这段代码声明了一个静态成员变量 m_total，用来统计学生的人数。
+
+static 成员变量属于类，不属于某个具体的对象，即使创建多个对象，也只为 m_total 分配一份内存，所有对象使用的都是这份内存中的数据。当某个对象修改了 m_total，也会影响到其他对象。
+
+
+
+static 成员变量必须在类声明的外部初始化，具体形式为：
+
+```
+type class::name = value;
+```
+
+将上面的 m_total 初始化：
+
+```c++
+int Student::m_total = 0;
+```
+
+静态成员变量在初始化时不能再加 static，但必须要有数据类型。被 private、protected、public 修饰的静态成员变量都可以用这种方式初始化。
+
+
+
+static 成员变量的内存既不是在声明类时分配，也不是在创建对象时分配，而是在（类外）初始化时分配。反过来说，没有在类外初始化的 static 成员变量不能使用。
+
+static 成员变量既可以通过对象来访问，也可以通过类来访问。
+
+```c++
+//通过类类访问 static 成员变量
+Student::m_total = 10;
+//通过对象来访问 static 成员变量
+Student stu("小明", 15, 92.5f);
+stu.m_total = 20;
+//通过对象指针来访问 static 成员变量
+Student *pstu = new Student("李华", 16, 96);
+pstu -> m_total = 20;
+```
 
 
 
 
 
+### static静态成员函数
+
+static 除了可以声明静态成员变量，还可以声明静态成员函数。普通成员函数可以访问所有成员（包括成员变量和成员函数），静态成员函数只能访问静态成员。
+
+编译器在编译一个普通成员函数时，会隐式地增加一个形参 this，并把当前对象的地址赋值给 this，所以普通成员函数只能在创建对象后通过对象来调用，因为它需要当前对象的地址。而静态成员函数可以通过类来直接调用，编译器不会为它增加形参 this，它不需要当前对象的地址，所以不管有没有创建对象，都可以调用静态成员函数。
+
+静态成员函数与普通成员函数的根本区别在于：普通成员函数有 this 指针，可以访问类中的任意成员；而静态成员函数没有 this 指针，只能访问静态成员（包括静态成员变量和静态成员函数）。
 
 
+
+
+
+### class和struct区别
+
+[C++](http://c.biancheng.net/cplus/) 中保留了C语言的 struct 关键字，并且加以扩充。在C语言中，struct 只能包含成员变量，不能包含成员函数。而在C++中，struct 类似于 class，既可以包含成员变量，又可以包含成员函数。
+
+在编写C++代码时，建议使用 class 来定义类，而使用 struct 来定义结构体，这样做语义更加明确。
+
+
+
+
+
+### string
+
+[C++](http://c.biancheng.net/cplus/) 大大增强了对字符串的支持，除了可以使用C风格的字符串，还可以使用内置的 string 类。string 类处理起字符串来会方便很多，完全可以代替C语言中的字符数组或字符串[指针](http://c.biancheng.net/c/80/)。
+
+```c++
+string s = "http://c.biancheng.net";
+int len = s.length();
+cout<<len<<endl;
+```
+
+输出结果为`22`。由于 string 的末尾没有`'\0'`字符，所以 length() 返回的是字符串的真实长度，而不是长度 +1。
+
+
+
+#### 转换为C风格的字符串
+
+虽然 C++ 提供了 string 类来替代C语言中的字符串，但是在实际编程中，有时候必须要使用C风格的字符串（例如打开文件时的路径），为此，string 类为我们提供了一个转换函数 c_str()，该函数能够将 string 字符串转换为C风格的字符串，并返回该字符串的 const 指针（const char*）。
+
+```c++
+string path = "D:\\demo.txt";
+FILE *fp = fopen(path.c_str(), "rt");
+```
+
+为了使用C语言中的 fopen() 函数打开文件，必须将 string 字符串转换为C风格的字符串。
+
+
+
+#### 字符串的输入输出
+
+```c++
+#include <iostream>
+#include <string>
+using namespace std;
+int main(){
+    string s;
+    cin>>s;  //输入字符串
+    cout<<s<<endl;  //输出字符串
+    return 0;
+}
+```
+
+
+
+#### 访问字符串中的字符
+
+string 字符串也可以像C风格的字符串一样按照下标来访问其中的每一个字符。string 字符串的起始下标仍是从 0 开始。
+
+```c++
+#include <iostream>
+#include <string>
+using namespace std;
+int main(){
+    string s = "1234567890";
+    for(int i=0,len=s.length(); i<len; i++){
+        cout<<s[i]<<" ";
+    }
+    cout<<endl;
+    s[5] = '5';
+    cout<<s<<endl;
+    return 0;
+}
+```
+
+本例定义了一个 string 变量 s，并赋值 "1234567890"，之后用 [for 循环](http://c.biancheng.net/view/172.html)遍历输出每一个字符。借助下标，除了能够访问每个字符，也可以修改每个字符，`s[5] = '5';`就将第6个字符修改为 '5'，所以 s 最后为 "1234557890"。
+
+
+
+#### 字符串的拼接
+
+有了 string 类，我们可以使用`+`或`+=`运算符来直接拼接字符串，非常方便，再也不需要使用C语言中的 strcat()、strcpy()、malloc() 等函数来拼接字符串了，不用担心空间不够会溢出了。
+
+
+
+#### 字符串的增删改查
+
+##### 插入字符串
+
+insert() 函数可以在 string 字符串中指定的位置插入另一个字符串，它的一种原型为：
+
+```c++
+string& insert (size_t pos, const string& str);
+```
+
+pos 表示要插入的位置，也就是下标；str 表示要插入的字符串，它可以是 string 字符串，也可以是C风格的字符串。
+
+```c++
+#include <iostream>
+#include <string>
+using namespace std;
+int main(){
+    string s1, s2, s3;
+    s1 = s2 = "1234567890";
+    s3 = "aaa";
+    s1.insert(5, s3);
+    cout<< s1 <<endl;
+    s2.insert(5, "bbb");
+    cout<< s2 <<endl;
+    return 0;
+}
+```
+
+
+
+##### 删除字符串
+
+erase() 函数可以删除 string 中的一个子字符串。它的一种原型为：
+
+```c++
+string& erase (size_t pos = 0, size_t len = npos);
+```
+
+pos 表示要删除的子字符串的起始下标，len 表示要删除子字符串的长度。如果不指明 len 的话，那么直接删除从 pos 到字符串结束处的所有字符（此时 len = str.length - pos）
+
+```c++
+#include <iostream>
+#include <string>
+using namespace std;
+int main(){
+    string s1, s2, s3;
+    s1 = s2 = s3 = "1234567890";
+    s2.erase(5);
+    s3.erase(5, 3);
+    cout<< s1 <<endl;
+    cout<< s2 <<endl;
+    cout<< s3 <<endl;
+    return 0;
+}
+```
+
+运行结果：
+
+```
+1234567890
+12345
+1234590
+```
+
+
+
+##### 提取子字符串
+
+substr() 函数用于从 string 字符串中提取子字符串，它的原型为：
+
+```c++
+string substr (size_t pos = 0, size_t len = npos) const;
+```
+
+pos 为要提取的子字符串的起始下标，len 为要提取的子字符串的长度。
+
+```c++
+#include <iostream>
+#include <string>
+using namespace std;
+int main(){
+    string s1 = "first second third";
+    string s2;
+    s2 = s1.substr(6, 6);
+    cout<< s1 <<endl;
+    cout<< s2 <<endl;
+    return 0;
+}
+```
+
+运行结果：
+
+```
+first second third
+second
+```
+
+
+
+
+
+#### 字符串查找
+
+##### find() 函数
+
+find() 函数用于在 string 字符串中查找子字符串出现的位置，它其中的两种原型为：
+
+```c++
+size_t find (const string& str, size_t pos = 0) const;
+size_t find (const char* s, size_t pos = 0) const;
+```
+
+第一个参数为待查找的子字符串，它可以是 string 字符串，也可以是C风格的字符串。第二个参数为开始查找的位置（下标）；如果不指明，则从第0个字符开始查找。
+
+```c++
+#include <iostream>
+#include <string>
+using namespace std;
+int main(){
+    string s1 = "first second third";
+    string s2 = "second";
+    int index = s1.find(s2,5);
+    if(index < s1.length())
+        cout<<"Found at index : "<< index <<endl;
+    else
+        cout<<"Not found"<<endl;
+    return 0;
+}
+```
+
+
+
+#####  rfind() 函数
+
+rfind() 和 find() 很类似，同样是在字符串中查找子字符串，不同的是 find() 函数从第二个参数开始往后查找，而 rfind() 函数则最多查找到第二个参数处，如果到了第二个参数所指定的下标还没有找到子字符串，则返回 string::npos。
+
+
+
+##### find_first_of() 函数
+
+find_first_of() 函数用于查找子字符串和字符串共同具有的字符在字符串中首次出现的位置。请看下面的代码：
+
+```c++
+#include <iostream>
+#include <string>
+using namespace std;
+int main(){
+    string s1 = "first second second third";
+    string s2 = "second";
+    int index = s1.find_first_of(s2);
+    if(index < s1.length())
+        cout<<"Found at index : "<< index <<endl;
+    else
+        cout<<"Not found"<<endl;
+    return 0;
+}
+```
 
 
 
