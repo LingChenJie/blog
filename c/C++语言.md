@@ -1381,6 +1381,263 @@ int main(){
 
 
 
+### 继承
+
+```c++
+class Student: public People
+```
+
+class 后面的“Student”是新声明的派生类，冒号后面的“People”是已经存在的基类。在“People”之前有一关键宇 public，用来表示是公有继承。
+
+```c++
+#include<iostream>
+using namespace std;
+//基类 Pelple
+class People{
+public:
+    void setname(char *name);
+    void setage(int age);
+    char *getname();
+    int getage();
+private:
+    char *m_name;
+    int m_age;
+};
+void People::setname(char *name){ m_name = name; }
+void People::setage(int age){ m_age = age; }
+char* People::getname(){ return m_name; }
+int People::getage(){ return m_age;}
+
+//派生类 Student
+class Student: public People{
+public:
+    void setscore(float score);
+    float getscore();
+private:
+    float m_score;
+};
+void Student::setscore(float score){ m_score = score; }
+float Student::getscore(){ return m_score; }
+
+int main(){
+    Student stu;
+    stu.setname("小明");
+    stu.setage(16);
+    stu.setscore(95.5f);
+    cout<<stu.getname()<<"的年龄是 "<<stu.getage()<<"，成绩是 "<<stu.getscore()<<endl;
+    return 0;
+}
+```
+
+
+
+继承的一般语法为：
+
+```
+class 派生类名:［继承方式］ 基类名{
+    派生类新增加的成员
+};
+```
+
+继承方式包括 public（公有的）、private（私有的）和 protected（受保护的），此项是可选的，如果不写，那么默认为 private。
+
+
+
+### public、protected、private 指定继承方式
+
+不同的继承方式会影响基类成员在派生类中的访问权限。
+
+**1) public继承方式**
+
+- 基类中所有 public 成员在派生类中为 public 属性；
+- 基类中所有 protected 成员在派生类中为 protected 属性；
+- 基类中所有 private 成员在派生类中不能使用。
+
+**2) protected继承方式**
+
+- 基类中的所有 public 成员在派生类中为 protected 属性；
+- 基类中的所有 protected 成员在派生类中为 protected 属性；
+- 基类中的所有 private 成员在派生类中不能使用。
+
+**3) private继承方式**
+
+- 基类中的所有 public 成员在派生类中均为 private 属性；
+- 基类中的所有 protected 成员在派生类中均为 private 属性；
+- 基类中的所有 private 成员在派生类中不能使用。
+
+由于 private 和 protected 继承方式会改变基类成员在派生类中的访问权限，导致继承关系复杂，所以实际开发中我们一般使用 public。
+
+
+
+### 改变访问权限
+
+使用 using 关键字可以改变基类成员在派生类中的访问权限，例如将 public 改为 private、将 protected 改为 public.
+
+```c++
+#include<iostream>
+using namespace std;
+//基类People
+class People {
+public:
+    void show();
+protected:
+    char *m_name;
+    int m_age;
+};
+void People::show() {
+    cout << m_name << "的年龄是" << m_age << endl;
+}
+
+//派生类Student
+class Student : public People {
+public:
+    void learning();
+public:
+    using People::m_name;  //将protected改为public
+    using People::m_age;  //将protected改为public
+    float m_score;
+private:
+    using People::show;  //将public改为private
+};
+void Student::learning() {
+    cout << "我是" << m_name << "，今年" << m_age << "岁，这次考了" << m_score << "分！" << endl;
+}
+
+int main() {
+    Student stu;
+    stu.m_name = "小明";
+    stu.m_age = 16;
+    stu.m_score = 99.5f;
+    stu.show();  //compile error
+    stu.learning();
+    return 0;
+}
+```
+
+
+
+
+
+### 访问private、protected属性的成员变量
+
+```c++
+#include <iostream>
+using namespace std;
+class A{
+public:
+    A(int a, int b, int c);
+private:
+    int m_a;
+    int m_b;
+    int m_c;
+};
+A::A(int a, int b, int c): m_a(a), m_b(b), m_c(c){ }
+
+int main(){
+    A obj(10, 20, 30);
+    int a = obj.m_a;  //Compile Error
+    A *p = new A(40, 50, 60);
+    int b = p->m_b;  //Compile Error
+    return 0;
+}
+```
+
+不过 C++ 的这种限制仅仅是语法层面的，通过某种“蹩脚”的方法，我们能够突破访问权限的限制，访问到 private、protected 属性的成员变量，赋予我们这种“特异功能”的，正是强大而又灵活的指针（Pointer）.
+
+
+
+#### 使用偏移
+
+假设 obj 对象的起始地址为 0X1000，m_a、m_b、m_c 与对象开头分别相距 0、4、8 个字节，我们将这段距离称为偏移（Offset）。
+
+一旦知道了对象的起始地址，再加上偏移就能够求得成员变量的地址，知道了成员变量的地址和类型，也就能够轻而易举地知道它的值。
+
+当通过对象指针访问成员变量时，编译器实际上也是使用这种方式来取得它的值。为了说明问题，我们不妨将上例中成员变量的访问权限改为 public，再来执行第 18 行的语句：
+
+
+
+当通过对象指针访问成员变量时，编译器实际上也是使用这种方式来取得它的值。
+
+```
+int b = p->m_b;
+```
+
+此时编译器内部会发生类似下面的转换：
+
+````
+int b = *(int*)( (int)p + sizeof(int) );
+````
+
+p 是对象 obj 的指针，`(int)p`将指针转换为一个整数，这样才能进行加法运算；`sizeof(int)`用来计算 m_b 的偏移；`(int)p + sizeof(int)`得到的就是 m_b 的地址，不过因为此时是`int`类型，所以还需要强制转换为`int *`类型；开头的`*`用来获取地址上的数据。
+
+
+
+#### 突破访问权限的限制
+
+上述的转换过程是编译器自动完成的，当成员变量的访问权限为 private 时，我们也可以手动转换，只要能正确计算偏移即可，这样就突破了访问权限的限制。
+
+修改上例中的代码，借助偏移来访问 private 属性的成员变量：
+
+````c++
+#include <iostream>
+using namespace std;
+class A{
+public:
+    A(int a, int b, int c);
+private:
+    int m_a;
+    int m_b;
+    int m_c;
+};
+A::A(int a, int b, int c): m_a(a), m_b(b), m_c(c){ }
+
+int main(){
+    A obj(10, 20, 30);
+    int a1 = *(int*)&obj;
+    int b = *(int*)( (int)&obj + sizeof(int) );
+    A *p = new A(40, 50, 60);
+    int a2 = *(int*)p;
+    int c = *(int*)( (int)p + sizeof(int)*2 );
+   
+    cout<<"a1="<<a1<<", a2="<<a2<<", b="<<b<<", c="<<c<<endl;
+    return 0;
+}
+````
+
+运行结果:
+
+```
+a1=10, a2=40, b=20, c=60
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
